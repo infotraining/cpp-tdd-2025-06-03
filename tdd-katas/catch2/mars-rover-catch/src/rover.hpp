@@ -65,6 +65,15 @@ namespace TDD
         }
     };
 
+    class ObstacleDetectedException : public std::runtime_error
+    {
+    public:
+        explicit ObstacleDetectedException(const std::string& message)
+        : std::runtime_error(message)
+        {
+        }
+    };
+
     class Map
     {
         size_t max_width_;
@@ -86,15 +95,26 @@ namespace TDD
         }
     };
 
+    class ObstacleDetector
+    {
+    public:
+        virtual bool is_obstacle_for(size_t x, size_t y) = 0;
+        virtual ~ObstacleDetector() = default;
+    };
+
     class Rover
     {
         Position position_;
         std::optional<Map> map_;
+        std::unique_ptr<ObstacleDetector> obstacle_detector_;
 
     public:
-        Rover(int x, int y, Direction direction, std::optional<Map> map = std::nullopt)
+        Rover(int x, int y, Direction direction, 
+              std::optional<Map> map = std::nullopt, 
+              std::unique_ptr<ObstacleDetector> detector = nullptr)
             : position_{x, y, direction}
             , map_{map}
+            , obstacle_detector_{std::move(detector)}
         {
         }
 
@@ -105,44 +125,23 @@ namespace TDD
 
         void move_forward()
         {
-            switch (position_.direction)
-            {
-            case Direction::North:
-                position_.y += 1;
-                break;
-            case Direction::South:
-                position_.y -= 1;
-                break;
-            case Direction::East:
-                position_.x += 1;
-                break;
-            case Direction::West:
-                position_.x -= 1;
-                break;
-            }
+            Position next_pos = next_forward_position(position_);
 
-            wrap_coordinates();
+            if (obstacle_detector_ && obstacle_detector_->is_obstacle_for(next_pos.x, next_pos.y))
+                throw ObstacleDetectedException("Obstacle detected!!!");
+
+            position_ = next_pos;
         }
 
         void move_backward()
         {
-            switch (position_.direction)
-            {
-            case Direction::North:
-                position_.y -= 1;
-                break;
-            case Direction::South:
-                position_.y += 1;
-                break;
-            case Direction::East:
-                position_.x -= 1;
-                break;
-            case Direction::West:
-                position_.x += 1;
-                break;
-            }
+             Position next_pos = next_backward_position(position_);
 
-            wrap_coordinates();
+            if (obstacle_detector_ && obstacle_detector_->is_obstacle_for(next_pos.x, next_pos.y))
+                throw ObstacleDetectedException("Obstacle detected!!!");
+
+            position_ = next_pos;        
+
         }
 
         void turn_left()
@@ -180,14 +179,62 @@ namespace TDD
         }
 
     private:
-        void wrap_coordinates()
+        Position next_forward_position(Position position)
+        {
+            switch (position.direction)
+            {
+            case Direction::North:
+                position.y += 1;
+                break;
+            case Direction::South:
+                position.y -= 1;
+                break;
+            case Direction::East:
+                position.x += 1;
+                break;
+            case Direction::West:
+                position.x -= 1;
+                break;
+            }
+
+            position = wrap_coordinates(position);
+
+            return position;
+        }
+
+        Position next_backward_position(Position position)
+        {
+            switch (position.direction)
+            {
+            case Direction::North:
+                position.y -= 1;
+                break;
+            case Direction::South:
+                position.y += 1;
+                break;
+            case Direction::East:
+                position.x -= 1;
+                break;
+            case Direction::West:
+                position.x += 1;
+                break;
+            }
+
+            position = wrap_coordinates(position);
+
+            return position;
+        }
+        
+        Position wrap_coordinates(Position position)
         {
             if (map_)
             {
-                auto [wrapped_x, wrapped_y] = map_->wrap(position_.x, position_.y);
-                position_.x = wrapped_x;
-                position_.y = wrapped_y;
+                auto [wrapped_x, wrapped_y] = map_->wrap(position.x, position.y);
+                position.x = wrapped_x;
+                position.y = wrapped_y;
             }
+
+            return position;
         }
 
         inline constexpr static std::array directions_{
@@ -204,6 +251,37 @@ namespace TDD
         {
             auto index = std::to_underlying(current_direction) + std::to_underlying(turn_direction);
             return directions_[index % std::size(directions_)];
+        }
+    };
+
+    class RoverBuilder
+    {
+        Position position_{5, 5, Direction::North};
+        std::optional<Map> map_{std::nullopt};
+        std::unique_ptr<ObstacleDetector> detector_ = nullptr;
+
+    public:
+        RoverBuilder& with_position(int x, int y, Direction direction)
+        {
+            position_ = {x, y, direction};
+            return *this;
+        }
+
+        RoverBuilder& with_map(Map map)
+        {
+            map_ = map;
+            return *this;
+        }
+
+        RoverBuilder& with_obstacle_detector(std::unique_ptr<ObstacleDetector> detector)
+        {
+            detector_ = std::move(detector);
+            return *this;
+        }
+
+        Rover build()
+        {
+            return Rover(position_.x, position_.y, position_.direction, map_, std::move(detector_));
         }
     };
 }

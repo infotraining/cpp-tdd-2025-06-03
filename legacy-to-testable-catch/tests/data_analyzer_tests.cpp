@@ -35,3 +35,23 @@ TEST_CASE("DataAnalyzer - calculate stats", "[Integration]")
 
     REQUIRE(get_file_contents("results.txt") == expected_results);
 }
+
+TEST_CASE("DataAnalyzer - test reading")
+{
+    auto testable_reader = [](const std::string& file_name) { 
+        return Data{1, 2, 3, 4, 5};
+    };
+
+    Ver_1::DataAnalyzer data_analyzer(Statistics::sum, testable_reader);
+    data_analyzer.calculate();
+
+    REQUIRE(data_analyzer.results() == Results{{"Sum", 15.0}});
+}
+
+TEST_CASE("Avg")
+{
+    Data data = {1, 2, 3, 4, 5};
+
+    Ver_2::Avg avg;
+    REQUIRE(avg.calculate(data) == Results{{"Avg", 3.0}});
+}

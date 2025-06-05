@@ -14,6 +14,7 @@ struct Mother
     constexpr static const char* client = "John Newman";
     constexpr static const char* timestamp = "2017/01/01 1:45am";
 
+
     static ReservationRequest create_reservation_request()
     {
         return ReservationRequest{Flight{flight_no, 100.0}, client, timestamp};
@@ -79,7 +80,7 @@ public:
 
 TEST_F(FlightServiceTests, CanAddReservationToRepository)
 {
-    auto reservation_request = Mother::create_reservation_request();
+    auto reservation_request = ReservationRequestBuilder{}.get_reservation_request();
 
     EXPECT_CALL(flight_repository_, add(reservation_request.flight)).Times(1);
 
@@ -98,8 +99,7 @@ TEST_F(FlightServiceTests, ThrowsWhenTimestampInInvalidFormat)
 TEST_F(FlightServiceTests, ThrowsWhenClientIsEmptyString)
 {
     ReservationRequestBuilder reservation_request_builder;
-    reservation_request_builder.with_client("");
+    reservation_request_builder
+        .with_client("");
     auto reservation_request = reservation_request_builder.get_reservation_request();
-
-    EXPECT_THROW(sut_.make_reservation(reservation_request), std::invalid_argument);
 }

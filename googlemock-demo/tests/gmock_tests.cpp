@@ -4,8 +4,34 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <memory>
+#include <chrono>
 
 using namespace std;
+
+struct Metr
+{
+    int value;
+};
+
+void foo(Metr m)
+{
+
+}
+
+Metr operator ""_m(unsigned long long v)
+{
+    return Metr{static_cast<int>(v)};
+}
+
+TEST(LiteralsTests, Literal)
+{
+    auto txt = "text"; // const char*
+    auto str = "text"s; // string
+
+    auto time = 1s;
+
+    foo(42_m);
+}
 
 class Interface
 {
@@ -45,7 +71,7 @@ namespace Legacy
 
 TEST(GMockDefaultValuesTests, ReturningDefaultValues)
 {
-    testing::NiceMock<MockInterface> mock;
+    ::testing::NiceMock<MockInterface> mock;
 
     ASSERT_EQ(0, mock.generate());
     ASSERT_EQ(""s, mock.get_name());
@@ -85,7 +111,7 @@ TEST_F(GMockDemoTests, DefaultValueCanBeSetForMethodUsingOnCall)
 
     ASSERT_EQ(mock.generate(), 665);
     ASSERT_EQ(mock.generate(), 665);
-    ASSERT_THAT(mock.get_data("text"s), ElementsAre(1, 2, 3));
+    ASSERT_THAT(mock.get_data("text"s), ElementsAre(1, 2, 3));    
 }
 
 TEST_F(GMockDemoTests, DefaultValueCanBeSetForMethodUsingExpectCall)
@@ -133,18 +159,20 @@ TEST_F(GMockDemoTests, ReturnDifferentValuesBasedOnArgument)
 {
     using namespace ::testing;
 
+    EXPECT_CALL(mock, get_value(Eq(0))).WillRepeatedly(Return("zero"));
     EXPECT_CALL(mock, get_value(Gt(0))).WillRepeatedly(Return("positive"));
     EXPECT_CALL(mock, get_value(Lt(0))).WillRepeatedly(Return("negative"));
 
     ASSERT_EQ(mock.get_value(10), "positive");
-    ASSERT_EQ(mock.get_value(-1), "negative");   
+    ASSERT_EQ(mock.get_value(-1), "negative");  
+    ASSERT_EQ(mock.get_value(0), "zero"); 
 }
 
 TEST_F(GMockDemoTests, ExpectingOrderedCalls)
 {
     using namespace ::testing;
 
-    InSequence s;
+    Sequence s;
 
     vector<string> names = {"Jan", "Kowalski"};
     size_t index {};

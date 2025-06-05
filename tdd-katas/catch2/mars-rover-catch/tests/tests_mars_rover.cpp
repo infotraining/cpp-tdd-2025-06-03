@@ -45,7 +45,8 @@ CATCH_REGISTER_ENUM(Direction, Direction::North, Direction::South, Direction::Ea
 
 TEST_CASE("Rover initialized with coord and direction")
 {
-    Rover rover(5, 5, Direction::North);
+    // Rover rover(5, 5, Direction::North);
+    Rover rover = RoverBuilder{}.build();
 
     SECTION("reports current postion")
     {
@@ -63,7 +64,9 @@ TEST_CASE("Rover - move forward")
 
     DYNAMIC_SECTION("Rover moves forward from " << start_direction)
     {
-        Rover rover(5, 5, start_direction);
+        // Rover rover(5, 5, start_direction);
+        RoverBuilder rover_bld;
+        Rover rover = rover_bld.with_position(5, 5, start_direction).build();
 
         rover.move_forward();
 
@@ -84,7 +87,9 @@ TEST_CASE("Rover - move backward")
 
     DYNAMIC_SECTION("Rover moves forward from " << start_direction)
     {
-        Rover rover(5, 5, start_direction);
+        // Rover rover(5, 5, start_direction);
+        RoverBuilder rover_bld;
+        Rover rover = rover_bld.with_position(5, 5, start_direction).build();
 
         rover.move_backward();
 
@@ -105,7 +110,9 @@ TEST_CASE("Rover - turn left")
 
     DYNAMIC_SECTION("Rover turns left from " << start_direction)
     {
-        Rover rover(5, 5, start_direction);
+        // Rover rover(5, 5, start_direction);
+        RoverBuilder rover_bld;
+        Rover rover = rover_bld.with_position(5, 5, start_direction).build();
 
         rover.turn_left();
 
@@ -126,7 +133,9 @@ TEST_CASE("Rover - turn right")
 
     DYNAMIC_SECTION("Rover turns right from " << start_direction)
     {
-        Rover rover(5, 5, start_direction);
+        // Rover rover(5, 5, start_direction);
+        RoverBuilder rover_bld;
+        Rover rover = rover_bld.with_position(5, 5, start_direction).build();
 
         rover.turn_right();
 
@@ -139,7 +148,9 @@ TEST_CASE("Rover - turn right")
 
 TEST_CASE("Rover - executes list of commands")
 {
-    Rover rover(5, 5, Direction::East);
+    // Rover rover(5, 5, Direction::East);
+    RoverBuilder rover_bld;
+    Rover rover = rover_bld.with_position(5, 5, Direction::East).build();
 
     SECTION("Uppercase set of commands")
     {
@@ -179,11 +190,16 @@ TEST_CASE("Rover - executes list of commands")
 
 TEST_CASE("Rover - wrapping coordinates")
 {
+    RoverBuilder rover_bld;
+    
     Map mars_map{10, 10};
+    rover_bld.with_map(mars_map);
+
 
     SECTION("Rover wraps coordinates when moving north")
     {
-        Rover rover(5, 9, Direction::North, mars_map);
+        //Rover rover(5, 9, Direction::North, mars_map);
+        Rover rover = rover_bld.with_position(5, 9, Direction::North).build();
 
         rover.move_forward();
 
@@ -192,7 +208,8 @@ TEST_CASE("Rover - wrapping coordinates")
 
     SECTION("Rover wraps coordinates when moving south")
     {
-        Rover rover(5, 0, Direction::South, mars_map);
+        //Rover rover(5, 0, Direction::South, mars_map);
+        Rover rover = rover_bld.with_position(5, 0, Direction::South).build();
 
         rover.move_forward();
 
@@ -201,7 +218,8 @@ TEST_CASE("Rover - wrapping coordinates")
 
     SECTION("Rover wraps coordinates when moving east")
     {
-        Rover rover(9, 5, Direction::East, mars_map);
+        //Rover rover(9, 5, Direction::East, mars_map);
+        Rover rover = rover_bld.with_position(9, 5, Direction::East).build();
 
         rover.move_forward();
 
@@ -210,10 +228,83 @@ TEST_CASE("Rover - wrapping coordinates")
 
     SECTION("Rover wraps coordinates when moving west")
     {
-        Rover rover(5, 9, Direction::North, mars_map);
+        //Rover rover(5, 9, Direction::North, mars_map);
+        Rover rover = rover_bld.with_position(5, 9, Direction::North).build();
 
         rover.move_forward();
 
         REQUIRE(rover.get_position() == Position(5, 0, Direction::North));
+    }
+}
+
+class ObstacleDetectorStub : public ObstacleDetector
+{
+public:
+    bool is_obstacle_for(size_t x, size_t y) override
+    {
+        if (x == 5 && y == 8)
+            return true;
+        return false;
+    };
+};
+
+TEST_CASE("Rover - obstacle detection")
+{
+    Map mars_map{10, 10};
+    auto obstacle_detector = std::make_unique<ObstacleDetectorStub>();
+    
+    RoverBuilder rover_bld;
+    rover_bld.with_position(5, 5, Direction::North);
+    rover_bld.with_map(mars_map);
+    rover_bld.with_obstacle_detector(std::move(obstacle_detector));
+
+    Rover rover = rover_bld.build();
+
+    SECTION("obstacle detected")
+    {
+        REQUIRE_THROWS_AS(rover.execute("FFFFFFF"), ObstacleDetectedException);
+    }
+
+    SECTION("obstacle detected")
+    {
+        REQUIRE_THROWS(rover.execute("FFFFFFF"));
+
+        REQUIRE(rover.get_position() == Position{5, 7, Direction::North});
+    }
+}
+
+struct MockObstacleDetector : public ObstacleDetector
+{
+    MAKE_MOCK2(is_obstacle_for, bool(size_t, size_t));
+};
+
+TEST_CASE("Rover - obstacle detection with mock")
+{
+    using ::trompeloeil::_;
+
+    Map mars_map{10, 10};
+    auto obstacle_detector = std::make_unique<MockObstacleDetector>();
+    auto& mock_obstacle_detector = *obstacle_detector;
+    
+    REQUIRE_CALL(mock_obstacle_detector, is_obstacle_for(_, _)).TIMES(2).RETURN(false);
+    REQUIRE_CALL(mock_obstacle_detector, is_obstacle_for(5, 8)).RETURN(true);
+
+    RoverBuilder rover_bld;
+    rover_bld.with_position(5, 5, Direction::North);
+    rover_bld.with_map(mars_map);
+    rover_bld.with_obstacle_detector(std::move(obstacle_detector));
+
+    Rover rover = rover_bld.build();
+
+    SECTION("obstacle detected")
+    {
+        REQUIRE_THROWS_AS(rover.execute("FFFFFFF"), ObstacleDetectedException);
+    }
+
+    SECTION("obstacle detected")
+    {
+        REQUIRE_THROWS(rover.execute("FFFFFFF"));
+
+        REQUIRE(rover.get_position() == Position{5, 7, Direction::North});
     }
 }
